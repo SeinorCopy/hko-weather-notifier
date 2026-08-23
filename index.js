@@ -41,7 +41,9 @@ async function checkWeather() {
 
   // 2. Call 天文台特別天氣提示 API
   try {
-    const res = await axios.get('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=swt&lang=tc');
+    //const res = await axios.get('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=swt&lang=tc'); //HKO API
+    const res = await axios.get('https://raw.githubusercontent.com/SeinorCopy/hko-weather-notifier/refs/heads/main/mock_hko.json'); //UAT
+    
     const swtTips = res.data.swt || [];
 
     // 如果目前完全沒有特別天氣提示
