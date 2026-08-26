@@ -41,8 +41,8 @@ async function checkWeather() {
 
   // 2. Call 天文台特別天氣提示 API
   try {
-    const res = await axios.get('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=swt&lang=tc'); //HKO API
-    //const res = await axios.get('https://raw.githubusercontent.com/SeinorCopy/hko-weather-notifier/refs/heads/main/mock_hko.json'); //UAT
+    //const res = await axios.get('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=swt&lang=tc'); //HKO API
+    const res = await axios.get('https://raw.githubusercontent.com/SeinorCopy/hko-weather-notifier/refs/heads/main/mock_hko.json'); //UAT
     
     const swtTips = res.data.swt || [];
 
@@ -56,36 +56,68 @@ async function checkWeather() {
       }
       return;
     }
+    
+    // 取得香港當前時間字串 (用於 Log 或標題)
+    const nowStr = new Date().toLocaleTimeString('zh-HK', { 
+      timeZone: 'Asia/Hong_Kong', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
 
-    // 將所有提示內容合併為一段文字
-    const currentText = swtTips.map(t => t.desc).join('\n---\n');
-    const currentHash = getHash(currentText);
-
-    // 3. 關鍵比對：Hash 一樣代表內容「一字未改」，直接跳過不重複 Send
-    if (currentHash === lastState.swtHash) {
-      console.log('⚡ 內容無變更，跳過發送。');
-      return;
+    // 1. 初始化 last_state 中的已發送清單 (避免歷史資料格式不對)
+    if (!lastState.sentNoticeKeys || !Array.isArray(lastState.sentNoticeKeys)) {
+      lastState.sentNoticeKeys = [];
     }
 
-    // 4. 關鍵字比對：預告掛波、預告落波、大雨 / 黃紅黑雨預告
-    const hasActionKeyword = /(考慮|將於|會在|預料|評估).*(改發|發出|取消|考慮取消).*([八8九9十10]號|烈風|暴風|颶風)|(大雨|暴雨|黃雨|紅雨|黑雨)/.test(currentText);
+  // 假設 swtList 是從天文台 API 取得的 swt 陣列
+  const swtList = weatherData.swt || [];
+  
+  if (swtList.length > 0) {
+    let hasNewSend = false;
 
-    if (hasActionKeyword) {
+  // 2. 逐條提示 (Msg) 分開獨立處理
+  for (const item of swtList) {
+    const issueTime = item.issueTime || ''; // 天文台提示的發佈時間 (例: 18:00)
+    const desc = item.desc;
+    
+    // 建立這條 Msg 的唯一識別碼 (例如: "18:00_未來一兩小時...")
+    const noticeKey = `${issueTime}_${desc}`;
+
+    // 3. 檢查這條 18:00 的 Msg 是否已經發送過
+    if (!lastState.sentNoticeKeys.includes(noticeKey)) {
+      
+      // 提取出顯示用的時間 (若 API 有 issueTime 就用，沒有就用當前時間)
+      const displayTime = issueTime ? issueTime.substring(11, 16) : nowStr;
+      
+      // 單獨發送這一條 Msg
       await sendPushover(
-        '📢 天文台特別天氣提示',
-        currentText
+        `📢 天文台特別天氣提示 (${displayTime})`, 
+        desc
       );
+
+      console.log(`✅ 已發送新提示 [${displayTime}]: ${desc.substring(0, 15)}...`);
+
+      // 4. 將這條 Msg 標記為已發送
+      lastState.sentNoticeKeys.push(noticeKey);
+      hasNewSend = true;
     } else {
-      console.log('ℹ️ 提示內容不包含關注動作關鍵字，不發送通知。');
+      console.log(`⚡ [${issueTime}] 該條提示已發送過，跳過。`);
     }
-
-    // 5. 更新狀態檔存檔
-    lastState.swtHash = currentHash;
-    fs.writeFileSync(STATE_FILE, JSON.stringify(lastState, null, 2));
-
-  } catch (error) {
-    console.error('❌ 天文台 API 獲取失敗:', error.message);
   }
+
+  // 5. 自動清理舊紀錄 (只保留最新 20 條 Key，防止 last_state.json 無限變大)
+  if (lastState.sentNoticeKeys.length > 20) {
+    lastState.sentNoticeKeys = lastState.sentNoticeKeys.slice(-20);
+  }
+
+  // 如果有發送新通知，更新 last_state.json
+  if (hasNewSend) {
+    saveState(lastState);
+  }
+
+} else {
+  console.log('ℹ️ 目前沒有特別天氣提示。');
 }
 
 // 執行監控
