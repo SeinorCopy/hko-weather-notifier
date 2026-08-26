@@ -8,7 +8,7 @@ const PUSHOVER_API_TOKEN = process.env.PUSHOVER_API_TOKEN;
 const STATE_FILE = './last_state.json';
 
 // 🎯 設定你想監控/篩選嘅關鍵字清單 (留空 [] 代表全部發送，唔做過濾)
-const KEYWORDS = ['八號', '黑', '紅', '黃', '發出', '改發', '暴雨', '未來', '烈風', '暴風', '考慮', '錄得'];
+const KEYWORDS = ['八號', '黑', '紅', '黃', '改發', '暴雨', '烈風', '暴風', '考慮', '錄得'];
 
 // 寫入 last_state.json 工具函數
 function saveState(stateData) {
